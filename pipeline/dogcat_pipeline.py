@@ -5,10 +5,15 @@ from typing import Optional, Text, List
 
 from ml_metadata.proto import metadata_store_pb2
 from tfx.proto import example_gen_pb2
+from tfx.proto import trainer_pb2
 from tfx.orchestration import metadata
 from tfx.orchestration import pipeline
 from tfx.components import ImportExampleGen
 from tfx.components import StatisticsGen
+from tfx.components import SchemaGen
+from tfx.components import ExampleValidator
+from tfx.components import Transform
+from tfx.components import Trainer
 from tfx.orchestration.beam.beam_dag_runner import BeamDagRunner
 
 PIPELINE_NAME = "dogcat_keras"
@@ -16,6 +21,8 @@ PIPELINE_NAME = "dogcat_keras"
 PIPELINE_ROOT = os.path.join('.', 'pipeline_output')
 
 DATA_ROOT = os.path.join('.', 'data')
+
+MODULE_FILE = os.path.join('pipeline', 'dogcat_keras.py')
 
 METADATA_PATH = os.path.join('.', 'metadata', PIPELINE_NAME,
                              'metadata.db')
@@ -25,24 +32,56 @@ def create_pipeline(
     pipeline_name: Text,
     pipeline_root: Text,
     data_root: Text,
+    module_file: Text,
     enable_cache: bool,
     metadata_connection_config: Optional[
         metadata_store_pb2.ConnectionConfig] = None,
     beam_pipeline_args: Optional[List[Text]] = None
 ):
-    components = []
 
+    # train testで分かれているtfrecordを指定
     input_config = example_gen_pb2.Input(splits=[
         example_gen_pb2.Input.Split(name='train', pattern='train/*'),
         example_gen_pb2.Input.Split(name='eval', pattern='test/*')
     ])
+    # パイプラインにデータをロード
     example_gen = ImportExampleGen(
         input_base=data_root, input_config=input_config)
 
+    # データの統計量を計算
     statistics_gen = StatisticsGen(examples=example_gen.outputs['examples'])
 
-    components.append(example_gen)
-    components.append(statistics_gen)
+    # staticsGenの統計ファイルからスキーマを生成
+    schema_gen = SchemaGen(
+        statistics=statistics_gen.outputs['statistics'], infer_feature_shape=True)
+
+    # データに欠損などがないかを検査
+    example_validator = ExampleValidator(
+        statistics=statistics_gen.outputs['statistics'],
+        schema=schema_gen.outputs['schema'])
+
+    transform = Transform(
+        examples=example_gen.outputs['examples'],
+        schema=schema_gen.outputs['schema'],
+        module_file=module_file
+    )
+
+    # trainer = Trainer(
+    #     module_file=module_file,
+    #     examples=transform.outputs['transformed_examples'],
+    #     schema=schema_gen.outputs['schema'],
+    #     train_args=trainer_pb2.TrainArgs(num_steps=160),
+    #     eval_args=trainer_pb2.EvalArgs(num_steps=4),
+    # )
+
+    components = [
+        example_gen,
+        statistics_gen,
+        schema_gen,
+        example_validator,
+        transform,
+        # trainer
+    ]
 
     return pipeline.Pipeline(
         pipeline_name=pipeline_name,
@@ -59,6 +98,7 @@ def run_pipeline():
         pipeline_name=PIPELINE_NAME,
         pipeline_root=PIPELINE_ROOT,
         data_root=DATA_ROOT,
+        module_file=MODULE_FILE,
         enable_cache=True,
         metadata_connection_config=metadata.sqlite_metadata_connection_config(
             METADATA_PATH)
@@ -68,35 +108,5 @@ def run_pipeline():
 
 
 if __name__ == '__main__':
-    logging.set_verbosity(logging.INFO)
+    logging.set_verbosity(logging.ERROR)
     run_pipeline()
-
-# def _create_pipeline(
-#     pipeline_name: Text,
-#     pipeline_root: Text,
-#     data_root: Text,
-#     metadata_path: Text,
-#     # enable_cache: bool,
-#     metadata_connection_config: Optional[
-#         metadata_store_pb2.ConnectionConfig] = None,
-#     beam_pipeline_args: Optional[List[Text]] = None
-# ):
-#     components = []
-#     return pipeline.Pipeline(
-#         pipeline_name=pipeline_name,
-#         pipeline_root=pipeline_root,
-#         components=components,
-#         # enable_cache=enable_cache,
-#         metadata_connection_config=metadata_connection_config,
-#         beam_pipeline_args=beam_pipeline_args,
-#     )
-
-
-# if __name__ == '__main__':
-#     logging.set_verbosity(logging.INFO)
-#     BeamDagRunner().run(
-#         _create_pipeline(
-#             pipeline_name=pipeline_name,
-#             pipeline_root=pipeline_root,
-#             data_root=data_root,
-#             metadata_path=_metadata_path))
