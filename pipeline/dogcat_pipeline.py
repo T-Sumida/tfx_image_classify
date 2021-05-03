@@ -14,6 +14,8 @@ from tfx.components import SchemaGen
 from tfx.components import ExampleValidator
 from tfx.components import Transform
 from tfx.components import Trainer
+from tfx.components.base import executor_spec
+from tfx.components.trainer.executor import GenericExecutor
 from tfx.orchestration.beam.beam_dag_runner import BeamDagRunner
 
 PIPELINE_NAME = "dogcat_keras"
@@ -22,7 +24,7 @@ PIPELINE_ROOT = os.path.join('.', 'pipeline_output')
 
 DATA_ROOT = os.path.join('.', 'data')
 
-MODULE_FILE = os.path.join('pipeline', 'dogcat_keras.py')
+MODULE_FILE = os.path.join('pipeline', 'dogcat_keras_utils.py')
 
 METADATA_PATH = os.path.join('.', 'metadata', PIPELINE_NAME,
                              'metadata.db')
@@ -66,13 +68,15 @@ def create_pipeline(
         module_file=module_file
     )
 
-    # trainer = Trainer(
-    #     module_file=module_file,
-    #     examples=transform.outputs['transformed_examples'],
-    #     schema=schema_gen.outputs['schema'],
-    #     train_args=trainer_pb2.TrainArgs(num_steps=160),
-    #     eval_args=trainer_pb2.EvalArgs(num_steps=4),
-    # )
+    trainer = Trainer(
+        module_file=module_file,
+        custom_executor_spec=executor_spec.ExecutorClassSpec(GenericExecutor),
+        examples=transform.outputs['transformed_examples'],
+        transform_graph=transform.outputs['transform_graph'],
+        schema=schema_gen.outputs['schema'],
+        train_args=trainer_pb2.TrainArgs(num_steps=160),
+        eval_args=trainer_pb2.EvalArgs(num_steps=4),
+    )
 
     components = [
         example_gen,
@@ -80,7 +84,7 @@ def create_pipeline(
         schema_gen,
         example_validator,
         transform,
-        # trainer
+        trainer
     ]
 
     return pipeline.Pipeline(
@@ -108,5 +112,5 @@ def run_pipeline():
 
 
 if __name__ == '__main__':
-    logging.set_verbosity(logging.ERROR)
+    logging.set_verbosity(logging.INFO)
     run_pipeline()
