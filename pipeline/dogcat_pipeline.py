@@ -3,9 +3,11 @@ import os
 from absl import logging
 from typing import Optional, Text, List
 
+import tensorflow_model_analysis as tfma
 from ml_metadata.proto import metadata_store_pb2
 from tfx.proto import example_gen_pb2
 from tfx.proto import trainer_pb2
+from tfx.proto import pusher_pb2
 from tfx.orchestration import metadata
 from tfx.orchestration import pipeline
 from tfx.components import ImportExampleGen
@@ -14,9 +16,16 @@ from tfx.components import SchemaGen
 from tfx.components import ExampleValidator
 from tfx.components import Transform
 from tfx.components import Trainer
+from tfx.components import ResolverNode
+from tfx.components import Evaluator
+from tfx.components import Pusher
+from tfx.dsl.experimental import latest_blessed_model_resolver
 from tfx.components.base import executor_spec
 from tfx.components.trainer.executor import GenericExecutor
 from tfx.orchestration.beam.beam_dag_runner import BeamDagRunner
+from tfx.types import Channel
+from tfx.types.standard_artifacts import Model
+from tfx.types.standard_artifacts import ModelBlessing
 
 PIPELINE_NAME = "dogcat_keras"
 
@@ -29,12 +38,14 @@ MODULE_FILE = os.path.join('pipeline', 'dogcat_keras_utils.py')
 METADATA_PATH = os.path.join('.', 'metadata', PIPELINE_NAME,
                              'metadata.db')
 
+SERVING_MODEL_DIR = os.path.join('.', 'serving_model')
 
 def create_pipeline(
     pipeline_name: Text,
     pipeline_root: Text,
     data_root: Text,
     module_file: Text,
+    serving_model_dir: Text,
     enable_cache: bool,
     metadata_connection_config: Optional[
         metadata_store_pb2.ConnectionConfig] = None,
@@ -78,13 +89,56 @@ def create_pipeline(
         eval_args=trainer_pb2.EvalArgs(num_steps=4),
     )
 
+    model_resolver = ResolverNode(
+        instance_name='latest_blessed_model_resolver',
+        resolver_class=latest_blessed_model_resolver.LatestBlessedModelResolver,
+        model=Channel(type=Model),
+        model_blessing=Channel(type=ModelBlessing))
+
+    # https://github.com/tensorflow/tfx/issues/3016
+    eval_config = tfma.EvalConfig(
+        model_specs=[
+            tfma.ModelSpec(label_key='label_xf', model_type='tf_keras',
+                           signature_name="serving_default")
+        ],
+        slicing_specs=[
+            tfma.SlicingSpec(),
+        ],
+        metrics_specs=[
+            tfma.MetricsSpec(metrics=[
+                tfma.MetricConfig(
+                    class_name='SparseCategoricalAccuracy',
+                    threshold=tfma.MetricThreshold(
+                        value_threshold=tfma.GenericValueThreshold(
+                            lower_bound={'value': 0.1}),
+                        change_threshold=tfma.GenericChangeThreshold(
+                            direction=tfma.MetricDirection.HIGHER_IS_BETTER,
+                            absolute={'value': -1e-3})))
+            ])
+        ])
+
+    evaluator = Evaluator(
+        examples=transform.outputs['transformed_examples'],
+        model=trainer.outputs['model'],
+        baseline_model=model_resolver.outputs['model'],
+        eval_config=eval_config)
+
+    pusher = Pusher(
+      model=trainer.outputs['model'],
+      model_blessing=evaluator.outputs['blessing'],
+      push_destination=pusher_pb2.PushDestination(
+          filesystem=pusher_pb2.PushDestination.Filesystem(
+              base_directory=serving_model_dir)))
+
     components = [
         example_gen,
         statistics_gen,
         schema_gen,
         example_validator,
         transform,
-        trainer
+        trainer,
+        evaluator,
+        pusher
     ]
 
     return pipeline.Pipeline(
@@ -103,6 +157,7 @@ def run_pipeline():
         pipeline_root=PIPELINE_ROOT,
         data_root=DATA_ROOT,
         module_file=MODULE_FILE,
+        serving_model_dir=SERVING_MODEL_DIR,
         enable_cache=True,
         metadata_connection_config=metadata.sqlite_metadata_connection_config(
             METADATA_PATH)

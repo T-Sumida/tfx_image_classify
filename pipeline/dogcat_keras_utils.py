@@ -109,7 +109,7 @@ def run_fn(fn_args: TrainerFnArgs):
     tensorboard_callback = tf.keras.callbacks.TensorBoard(
         log_dir=fn_args.model_run_dir, update_freq='batch')
 
-    steps_per_epoch = int(128 / TRAIN_BATCH_SIZE)
+    steps_per_epoch = int(100 / TRAIN_BATCH_SIZE)
     absl.logging.info('Start training the top classifier')
     model.fit(
         train_dataset,
@@ -127,6 +127,6 @@ def run_fn(fn_args: TrainerFnArgs):
                 dtype=tf.float32,
                 name=_transform_key_name(IMG_KEY))),
     }
-    temp_saving_model_dir = os.path.join(fn_args.serving_model_dir, 'tmp')
-    model.save(temp_saving_model_dir, save_format='tf', signatures=signatures)
+    model.save(fn_args.serving_model_dir,
+               save_format='tf_keras', signatures=signatures)
     pass
