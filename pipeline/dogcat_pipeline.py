@@ -40,6 +40,7 @@ METADATA_PATH = os.path.join('.', 'metadata', PIPELINE_NAME,
 
 SERVING_MODEL_DIR = os.path.join('.', 'serving_model')
 
+
 def create_pipeline(
     pipeline_name: Text,
     pipeline_root: Text,
@@ -124,11 +125,11 @@ def create_pipeline(
         eval_config=eval_config)
 
     pusher = Pusher(
-      model=trainer.outputs['model'],
-      model_blessing=evaluator.outputs['blessing'],
-      push_destination=pusher_pb2.PushDestination(
-          filesystem=pusher_pb2.PushDestination.Filesystem(
-              base_directory=serving_model_dir)))
+        model=trainer.outputs['model'],
+        model_blessing=evaluator.outputs['blessing'],
+        push_destination=pusher_pb2.PushDestination(
+            filesystem=pusher_pb2.PushDestination.Filesystem(
+                base_directory=serving_model_dir)))
 
     components = [
         example_gen,
