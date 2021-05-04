@@ -82,25 +82,11 @@ def _build_model() -> tf.keras.Model:
 def preprocessing_fn(inputs):
     outputs = {}
 
+    decoded = tf.io.decode_base64(inputs['image'])
     images = tf.map_fn(
         lambda x: tf.io.decode_jpeg(x[0], channels=3),
-        inputs['image'], dtype=tf.uint8
+        decoded, dtype=tf.uint8
     )
-
-    # images = tf.map_fn(
-    #     lambda x: tf.io.decode_jpeg(tf.io.decode_base64(x[0]), channels=3),
-    #     inputs['image'], dtype=tf.uint8
-    # )
-
-    # images = tf.map_fn(
-    #     lambda x: tf.io.decode_image(x[0], channels=3),
-    #     images, dtype=tf.uint8
-    # )
-    # print("==============================================")
-    # print(images)
-    # print("==============================================")
-
-    # images = tf.io.decode_image(images, channels=3, dtype=tf.uint8)
 
     images = tf.cast(images, tf.float32)
     images = tf.image.resize(images, [IMG_SIZE, IMG_SIZE])
@@ -139,7 +125,7 @@ def run_fn(fn_args: TrainerFnArgs):
     absl.logging.info('Start training the top classifier')
     model.fit(
         train_dataset,
-        epochs=3,
+        epochs=2,
         steps_per_epoch=steps_per_epoch,
         validation_data=eval_dataset,
         validation_steps=fn_args.eval_steps,

@@ -31,9 +31,7 @@ def create_tfrecord(img_files, out_file, file_limit=100):
 
                 img_bytes = io.BytesIO()
                 img_obj.save(img_bytes, format='JPEG')
-                # img_bytes = base64.b64encode(img_bytes.getvalue())
-                img_bytes = img_bytes.getvalue()
-
+                img_bytes = base64.urlsafe_b64encode(img_bytes.getvalue())
 
                 label = 0 if "dogs" in f else 1
 

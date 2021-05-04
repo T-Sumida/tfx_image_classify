@@ -1,7 +1,9 @@
 /original_data
-/data
+/data*
 /pipeline_output
 /metadata
+/serving_model
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
