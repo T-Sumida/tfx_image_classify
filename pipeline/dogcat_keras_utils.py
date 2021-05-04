@@ -87,6 +87,21 @@ def preprocessing_fn(inputs):
         inputs['image'], dtype=tf.uint8
     )
 
+    # images = tf.map_fn(
+    #     lambda x: tf.io.decode_jpeg(tf.io.decode_base64(x[0]), channels=3),
+    #     inputs['image'], dtype=tf.uint8
+    # )
+
+    # images = tf.map_fn(
+    #     lambda x: tf.io.decode_image(x[0], channels=3),
+    #     images, dtype=tf.uint8
+    # )
+    # print("==============================================")
+    # print(images)
+    # print("==============================================")
+
+    # images = tf.io.decode_image(images, channels=3, dtype=tf.uint8)
+
     images = tf.cast(images, tf.float32)
     images = tf.image.resize(images, [IMG_SIZE, IMG_SIZE])
 
