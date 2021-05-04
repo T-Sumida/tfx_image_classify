@@ -1,5 +1,4 @@
 # -*- coding:utf-8 -*-
-import os
 import absl
 from typing import List, Text
 
@@ -23,11 +22,23 @@ def _transform_key_name(key):
     return key + '_xf'
 
 
-def _get_serve_image_fn(model):
+def _make_serving_signatures(model: tf.keras.Model, tf_transform_features: tft.TFTransformOutput):
+    model.tft_layer = tf_transform_features.transform_features_layer()
+
     @tf.function
-    def serve_image_fn(image_tensor):
-        return model(image_tensor)
-    return serve_image_fn
+    def serve_image_fn(image_byte):
+        feature_spec = tf_transform_features.raw_feature_spec()
+        feature_spec.pop(LABEL_KEY)
+        parsed_features = tf.io.parse_example(image_byte, feature_spec)
+        transformed_features = model.tft_layer(parsed_features)
+        return model(transformed_features)
+
+    return {
+        'serving_default':
+        serve_image_fn.get_concrete_function(
+            tf.TensorSpec(
+                shape=[None], dtype=tf.string, name='examples'))
+    }
 
 
 def _create_dataset(
@@ -119,14 +130,6 @@ def run_fn(fn_args: TrainerFnArgs):
         validation_steps=fn_args.eval_steps,
         callbacks=[tensorboard_callback])
 
-    signatures = {
-        'serving_default':
-        _get_serve_image_fn(model).get_concrete_function(
-            tf.TensorSpec(
-                shape=[None, 224, 224, 3],
-                dtype=tf.float32,
-                name=_transform_key_name(IMG_KEY))),
-    }
+    signatures = _make_serving_signatures(model, tf_transform_output)
     model.save(fn_args.serving_model_dir,
                save_format='tf_keras', signatures=signatures)
-    pass

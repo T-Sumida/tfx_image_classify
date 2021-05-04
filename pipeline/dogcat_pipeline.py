@@ -31,7 +31,8 @@ PIPELINE_NAME = "dogcat_keras"
 
 PIPELINE_ROOT = os.path.join('.', 'pipeline_output')
 
-DATA_ROOT = os.path.join('.', 'data')
+DATA_ROOT = os.path.join('.', 'data/train')
+TEST_DATA_ROOT = os.path.join('.', 'data/test')
 
 MODULE_FILE = os.path.join('pipeline', 'dogcat_keras_utils.py')
 
@@ -45,6 +46,7 @@ def create_pipeline(
     pipeline_name: Text,
     pipeline_root: Text,
     data_root: Text,
+    test_data_root: Text,
     module_file: Text,
     serving_model_dir: Text,
     enable_cache: bool,
@@ -54,13 +56,22 @@ def create_pipeline(
 ):
 
     # train testで分かれているtfrecordを指定
-    input_config = example_gen_pb2.Input(splits=[
-        example_gen_pb2.Input.Split(name='train', pattern='train/*'),
-        example_gen_pb2.Input.Split(name='eval', pattern='test/*')
-    ])
+    output_config = example_gen_pb2.Output(
+        split_config=example_gen_pb2.SplitConfig(
+            splits=[
+                example_gen_pb2.SplitConfig.Split(
+                    name='train', hash_buckets=8),
+                example_gen_pb2.SplitConfig.Split(name='eval', hash_buckets=2),
+            ]
+        )
+    )
     # パイプラインにデータをロード
     example_gen = ImportExampleGen(
-        input_base=data_root, input_config=input_config)
+        input_base=data_root, output_config=output_config, instance_name="train_data")
+
+    test_example_gen = ImportExampleGen(
+        input_base=test_data_root, instance_name="test_data"
+    )
 
     # データの統計量を計算
     statistics_gen = StatisticsGen(examples=example_gen.outputs['examples'])
@@ -99,7 +110,7 @@ def create_pipeline(
     # https://github.com/tensorflow/tfx/issues/3016
     eval_config = tfma.EvalConfig(
         model_specs=[
-            tfma.ModelSpec(label_key='label_xf', model_type='tf_keras',
+            tfma.ModelSpec(label_key='label', model_type='tf_keras',
                            signature_name="serving_default")
         ],
         slicing_specs=[
@@ -119,7 +130,7 @@ def create_pipeline(
         ])
 
     evaluator = Evaluator(
-        examples=transform.outputs['transformed_examples'],
+        examples=test_example_gen.outputs['examples'],
         model=trainer.outputs['model'],
         baseline_model=model_resolver.outputs['model'],
         eval_config=eval_config)
@@ -133,6 +144,7 @@ def create_pipeline(
 
     components = [
         example_gen,
+        test_example_gen,
         statistics_gen,
         schema_gen,
         example_validator,
@@ -157,6 +169,7 @@ def run_pipeline():
         pipeline_name=PIPELINE_NAME,
         pipeline_root=PIPELINE_ROOT,
         data_root=DATA_ROOT,
+        test_data_root=TEST_DATA_ROOT,
         module_file=MODULE_FILE,
         serving_model_dir=SERVING_MODEL_DIR,
         enable_cache=True,
