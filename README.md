@@ -112,5 +112,4 @@ The meta files and the Saved Model are output in the following directory structu
 │           └── variables.index
 └── tfrecord_generator.py
 ```
-# License
-Copyright © 2021 T_Sumida Distributed under the MIT License.
+
