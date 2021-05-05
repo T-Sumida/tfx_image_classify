@@ -31,10 +31,10 @@ PIPELINE_NAME = "dogcat_keras"
 
 PIPELINE_ROOT = os.path.join('.', 'pipeline_output')
 
-DATA_ROOT = os.path.join('.', 'data/train')
-TEST_DATA_ROOT = os.path.join('.', 'data/test')
+DATA_ROOT = os.path.join('.', 'data_prac/train')
+TEST_DATA_ROOT = os.path.join('.', 'data_prac/test')
 
-MODULE_FILE = os.path.join('pipeline', 'dogcat_keras_utils.py')
+MODULE_FILE = os.path.join('pipeline', 'keras_utils.py')
 
 METADATA_PATH = os.path.join('.', 'metadata', PIPELINE_NAME,
                              'metadata.db')
