@@ -41,6 +41,19 @@ def _make_serving_signatures(model: tf.keras.Model, tf_transform_features: tft.T
     }
 
 
+def _data_augment(feature_dict):
+    image_feature = feature_dict[_transform_key_name(IMG_KEY)]
+
+    batch_size = tf.shape(image_feature)[0]
+    image_feature = tf.image.random_flip_left_right(image_feature)
+    image_feature = tf.image.resize_with_crop_or_pad(image_feature, 250, 250)
+    image_feature = tf.image.random_crop(
+        image_feature, (batch_size, IMG_SIZE, IMG_SIZE, 3))
+
+    feature_dict[_transform_key_name(IMG_KEY)] = image_feature
+    return feature_dict
+
+
 def _create_dataset(
     file_pattern: List[Text],
     data_accessor: DataAccessor,
@@ -56,6 +69,9 @@ def _create_dataset(
         ),
         tf_transform_output.transformed_metadata.schema
     )
+
+    if is_train:
+        dataset = dataset.map(lambda x, y: (_data_augment(x), y))
     return dataset
 
 
