@@ -1,6 +1,6 @@
 # -*- coding:utf-8 -*-
 import absl
-from typing import List, Text
+from typing import List, Text, Dict
 
 import tensorflow as tf
 import tensorflow_transform as tft
@@ -18,11 +18,28 @@ IMG_KEY = "image"
 LABEL_KEY = 'label'
 
 
-def _transform_key_name(key):
+def _transform_key_name(key: Text) -> Text:
+    """Add _xf to the end of the key
+
+    Args:
+        key (Text): key name
+
+    Returns:
+        Text: transformed key name
+    """
     return key + '_xf'
 
 
-def _make_serving_signatures(model: tf.keras.Model, tf_transform_features: tft.TFTransformOutput):
+def _make_serving_signatures(model: tf.keras.Model, tf_transform_features: tft.TFTransformOutput) -> Dict:
+    """make signature
+
+    Args:
+        model (tf.keras.Model): target model
+        tf_transform_features (tft.TFTransformOutput): transformed features
+
+    Returns:
+        Dict: signature info
+    """
     model.tft_layer = tf_transform_features.transform_features_layer()
 
     @tf.function
@@ -41,7 +58,15 @@ def _make_serving_signatures(model: tf.keras.Model, tf_transform_features: tft.T
     }
 
 
-def _data_augment(feature_dict):
+def _data_augment(feature_dict: Dict) -> Dict:
+    """augmente image data
+
+    Args:
+        feature_dict (Dict): target features
+
+    Returns:
+        Dict: augmanted features
+    """
     image_feature = feature_dict[_transform_key_name(IMG_KEY)]
 
     batch_size = tf.shape(image_feature)[0]
@@ -61,6 +86,18 @@ def _create_dataset(
     is_train: bool = False,
     batch_size: int = 200
 ) -> tf.data.Dataset:
+    """create dataset
+
+    Args:
+        file_pattern (List[Text]): List of paths or patterns of input tfrecord files.
+        data_accessor (DataAccessor): DataAccessor for converting input to RecordBatch.
+        tf_transform_output (tft.TFTransformOutput): A TFTransformOutput.
+        is_train (bool, optional): Whether the input dataset is train split or not. Defaults to False.
+        batch_size (int, optional): representing the number of consecutive elements of returned dataset to combine in a single batch. Defaults to 200.
+
+    Returns:
+        tf.data.Dataset: A dataset that contains (features, indices) tuple where features is a dictionary of Tensors, and indices is a single Tensor of label indices.
+    """
 
     dataset = data_accessor.tf_dataset_factory(
         file_pattern,
@@ -76,6 +113,11 @@ def _create_dataset(
 
 
 def _build_model() -> tf.keras.Model:
+    """build model
+
+    Returns:
+        tf.keras.Model: model
+    """
     base_model = tf.keras.applications.MobileNetV2(
         include_top=None,
         input_shape=(IMG_SIZE, IMG_SIZE, 3),
@@ -95,7 +137,15 @@ def _build_model() -> tf.keras.Model:
     return model
 
 
-def preprocessing_fn(inputs):
+def preprocessing_fn(inputs: Dict) -> Dict:
+    """tf.transform's callback function
+
+    Args:
+        inputs (Dict): inputs: map from feature keys to raw not-yet-transformed features.
+
+    Returns:
+        Dict: Map from string feature key to transformed feature operations.
+    """
     outputs = {}
 
     decoded = tf.io.decode_base64(inputs['image'])
@@ -113,6 +163,11 @@ def preprocessing_fn(inputs):
 
 
 def run_fn(fn_args: TrainerFnArgs):
+    """Train the model based on given args.
+
+    Args:
+        fn_args (TrainerFnArgs): Holds args used to train the model as name/value pairs.
+    """
     tf_transform_output = tft.TFTransformOutput(fn_args.transform_output)
 
     train_dataset = _create_dataset(
