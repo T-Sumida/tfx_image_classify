@@ -54,6 +54,22 @@ def create_pipeline(
         metadata_store_pb2.ConnectionConfig] = None,
     beam_pipeline_args: Optional[List[Text]] = None
 ):
+    """create pipeline
+
+    Args:
+        pipeline_name (Text): pipeline name
+        pipeline_root (Text): pipeline root path
+        data_root (Text): input data path
+        test_data_root (Text): test data path
+        module_file (Text): Python module files to inject customized logic into the TFX components.
+        serving_model_dir (Text): output directory path
+        enable_cache (bool): Whether to use the cache or not
+        metadata_connection_config (Optional[ metadata_store_pb2.ConnectionConfig], optional): [description]. Defaults to None.
+        beam_pipeline_args (Optional[List[Text]], optional): [description]. Defaults to None.
+
+    Returns:
+        [type]: [description]
+    """
 
     # train testで分かれているtfrecordを指定
     output_config = example_gen_pb2.Output(
