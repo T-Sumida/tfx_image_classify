@@ -24,11 +24,13 @@ def create_tfrecord(img_files, out_file, file_limit=100):
     with tf.io.TFRecordWriter(out_file) as writer:
         for f in img_files:
             with Image.open(f) as img_obj:
+                # resize image
                 img_obj = img_obj.convert('RGB').resize((500, 500))
                 image = np.array(img_obj)
                 width = image.shape[0]
                 height = image.shape[1]
 
+                # image to base64 bytes
                 img_bytes = io.BytesIO()
                 img_obj.save(img_bytes, format='JPEG')
                 img_bytes = base64.urlsafe_b64encode(img_bytes.getvalue())
@@ -69,8 +71,8 @@ create_tfrecord(test_files, os.path.join(
 
 cnt = len(list(tf.compat.v1.io.tf_record_iterator(os.path.join(
     DATASET_DIR_PATH, "train/dog_cat_train.tfrecord"))))
-print("Train データ件数：{}".format(cnt))
+print("Train data num：{}".format(cnt))
 
 cnt = len(list(tf.compat.v1.io.tf_record_iterator(os.path.join(
     DATASET_DIR_PATH, "test/dog_cat_test.tfrecord"))))
-print("Test  データ件数：{}".format(cnt))
+print("Test data num：{}".format(cnt))
